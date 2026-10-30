@@ -43,7 +43,6 @@ function draw(now){const dt=Math.min((now-lastTime)/1000,.05);lastTime=now;
  ctx.clearRect(0,0,w,h);if(cameraVisible){ctx.save();ctx.translate(w/2,h/2);ctx.rotate(sceneTilt);ctx.scale(-1,1);ctx.drawImage(video,-video.videoWidth*videoScale/2,-video.videoHeight*videoScale/2,video.videoWidth*videoScale,video.videoHeight*videoScale);ctx.restore()}else drawGrid();
  const shade=ctx.createLinearGradient(0,0,w,0);shade.addColorStop(0,'#123f3a38');shade.addColorStop(.6,'#123f3a00');ctx.fillStyle=shade;ctx.fillRect(0,0,w,h);
  if(frame.running&&!frame.demo&&frame.skeleton&&frame.showSkeleton){for(const [a,b]of[[11,13],[13,15],[12,14],[14,16]])if((frame.skeleton[a]?.visibility??1)>.45&&(frame.skeleton[b]?.visibility??1)>.45)line(project(frame.skeleton[a]),project(frame.skeleton[b]),'#ffffff80',5)}
- if(bridge){line(bridge.a,bridge.b,'#42604a',18);line(bridge.a,bridge.b,'#f3da8c',10);for(const point of[bridge.a,bridge.b]){ctx.beginPath();ctx.arc(point.x,point.y,11,0,Math.PI*2);ctx.fillStyle='#fff1c1';ctx.fill()}}
  const size=Math.min(h*.36,w*.22),ch=size,cw=size*(sprite.width/(sprite.height||1)||.7),walk=mode==='bridge'&&now-walkStart<4200?Math.sin(now*.018)*5:Math.sin(now*.002)*3;
  ctx.save();ctx.translate(x*w,y*h);ctx.fillStyle='#263e3940';ctx.beginPath();ctx.ellipse(0,5,cw*.42*sx,10,0,0,Math.PI*2);ctx.fill();ctx.translate(0,-ch*sy/2+walk);ctx.rotate(rotation);ctx.scale(sx,sy);if(mode==='bridge'&&bridge&&bridge.b.x<bridge.a.x)ctx.scale(-1,1);if(sprite.complete&&sprite.naturalWidth)ctx.drawImage(sprite,-cw/2,-ch/2,cw,ch);
  if(mode==='cross'){const a={x:-cw*.22,y:ch*.22},b={x:cw*.22,y:ch*.3};line(a,b,'#241f1a',14);line(a,b,'#9e332c',10);line({x:cw*.23,y:ch*.2},{x:-cw*.19,y:ch*.31},'#241f1a',14);line({x:cw*.23,y:ch*.2},{x:-cw*.19,y:ch*.31},'#bc4634',10)}
@@ -52,3 +51,4 @@ function draw(now){const dt=Math.min((now-lastTime)/1000,.05);lastTime=now;
  bubble.style.left=clamp(x*100,18,82)+'%';bubble.style.top=clamp((y-ch*sy/h-.07)*100,13,72)+'%';
  if(performance.now()-lastFrameAt>5000){setConnected('制御画面を待っています',false);guide.hidden=false}requestAnimationFrame(draw)
 }requestAnimationFrame(draw);
+
