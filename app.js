@@ -84,7 +84,6 @@ function draw(now){const dt=Math.min((now-lastFrame)/1000,.05);lastFrame=now;
  else {const backdrop=ctx.createLinearGradient(0,0,w,h);backdrop.addColorStop(0,'#e8f0dc');backdrop.addColorStop(1,'#b6d5c1');ctx.fillStyle=backdrop;ctx.fillRect(0,0,w,h);ctx.strokeStyle='#ffffff35';ctx.lineWidth=1;for(let i=0;i<w;i+=48){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,h);ctx.stroke();}for(let i=0;i<h;i+=48){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(w,i);ctx.stroke();}}
  const shade=ctx.createLinearGradient(0,0,w,0);shade.addColorStop(0,'#123f3a45');shade.addColorStop(.55,'#123f3a00');ctx.fillStyle=shade;ctx.fillRect(0,0,w,h);
  if(running&&!demo&&latest&&now-lastSeen<700&&$('#skeleton').checked){for(const [a,b] of [[11,13],[13,15],[12,14],[14,16]])if((latest[a].visibility??1)>.45&&(latest[b].visibility??1)>.45)line(project(latest[a]),project(latest[b]),'#ffffff80',4);}
- if(bridge){line(bridge.a,bridge.b,'#42604a',14);line(bridge.a,bridge.b,'#f3da8c',8);for(const point of [bridge.a,bridge.b]){ctx.beginPath();ctx.arc(point.x,point.y,9,0,Math.PI*2);ctx.fillStyle='#fff1c1';ctx.fill();}}
  const size=Math.min(h*.34,w*.2),ch=size,cw=size*(sprite.width/(sprite.height||1)||.7);const walk=mode==='bridge'&&now-walkStart<4200?Math.sin(now*.018)*4:Math.sin(now*.002)*2;
  ctx.save();ctx.translate(x*w,y*h);ctx.fillStyle='#263e3940';ctx.beginPath();ctx.ellipse(0,5,cw*.42*sx,8,0,0,Math.PI*2);ctx.fill();ctx.translate(0,-ch*sy/2+walk);ctx.rotate(rotation);ctx.scale(sx,sy);if(mode==='bridge'&&bridge.b.x<bridge.a.x)ctx.scale(-1,1);if(sprite.complete&&sprite.naturalWidth)ctx.drawImage(sprite,-cw/2,-ch/2,cw,ch);
  if(mode==='cross'){const a={x:-cw*.22,y:ch*.22},b={x:cw*.22,y:ch*.3};line(a,b,'#241f1a',12);line(a,b,'#9e332c',9);line({x:cw*.23,y:ch*.2},{x:-cw*.19,y:ch*.31},'#241f1a',12);line({x:cw*.23,y:ch*.2},{x:-cw*.19,y:ch*.31},'#bc4634',9);ctx.fillStyle='#f3d393';for(const [xx,yy] of [[cw*.22,ch*.29],[-cw*.19,ch*.31]]){ctx.beginPath();ctx.ellipse(xx,yy,5,4,-.3,0,7);ctx.fill();}}
@@ -93,3 +92,4 @@ function draw(now){const dt=Math.min((now-lastFrame)/1000,.05);lastFrame=now;
  if(mode==='shock'){ctx.font='bold 32px sans-serif';ctx.fillStyle='#fff4b5';ctx.fillText('!!',x*w+cw*.5,y*h-ch*.9);}
  $('#bubble').style.left=clamp(x*100,20,80)+'%';$('#bubble').style.top=clamp((y-ch*sy/h-.07)*100,18,68)+'%';requestAnimationFrame(draw);
 }requestAnimationFrame(draw);
+
