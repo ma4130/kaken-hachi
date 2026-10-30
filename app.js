@@ -4,9 +4,26 @@ const sprite=new Image();sprite.src='assets/character.png';
 let w=1200,h=590,running=false,stream,pose,latest=null,lastSeen=0,lastVideoTime=-1,lastInference=0,loading=false;
 let demo=null,demoStart=0,state={mode:'idle'},candidate='idle',candidateSince=0,hiddenSince=0,wasHidden=false,shockUntil=0,walkStart=0,lastMode='idle',lastFrame=performance.now();
 let x=.66,y=.81,sx=1,sy=1,rotation=0,sceneTilt=0,velocity=0;
+const syncChannel=new BroadcastChannel('denkikko-projection-v1');
+let projectionOnline=false,projectionPeer=null,lastSync=0;
 const messages={idle:'こんにちは！いっしょに遊ぼう。',tilt:'わわっ、すべる〜！',peek:'あれ？どこにいるの？',shock:'わあっ！びっくりした！',stretch:'びよーーん！',bridge:'手の先まで、おさんぽ。',cross:'えっへん。おそろい！'};
 const hints={idle:'上半身と両手をカメラに映してね',tilt:'上半身をゆっくり左右に傾けよう',peek:'顔を隠したあと、ぱっと開いてね',shock:'大成功！もう一度やってみよう',stretch:'胸の前で、両手を近づけたり離したり',bridge:'片腕をまっすぐ横に伸ばしてね',cross:'胸の前で腕を組んで、まねっこ！'};
 function resize(){const r=canvas.getBoundingClientRect();w=r.width;h=r.height;canvas.width=w*devicePixelRatio;canvas.height=h*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}new ResizeObserver(resize).observe(canvas);
+function setProjectionStatus(online,text){projectionOnline=online;$('#projectionStatus').textContent=text;document.querySelector('.live-badge.projection').classList.toggle('connected',online)}
+function postToProjection(message){syncChannel.postMessage({...message,source:'control'})}
+async function connectProjectionVideo(){
+ if(!stream||!projectionOnline)return;
+ projectionPeer?.close();projectionPeer=new RTCPeerConnection();
+ stream.getTracks().forEach(track=>projectionPeer.addTrack(track,stream));
+ projectionPeer.onicecandidate=event=>{if(event.candidate)postToProjection({type:'ice-control',candidate:event.candidate.toJSON()})};
+ const offer=await projectionPeer.createOffer();await projectionPeer.setLocalDescription(offer);postToProjection({type:'offer',description:{type:projectionPeer.localDescription.type,sdp:projectionPeer.localDescription.sdp}});
+}
+syncChannel.onmessage=async event=>{const message=event.data;if(!message||message.source==='control')return;
+ if(message.type==='projection-ready'){setProjectionStatus(true,'投影画面と接続済み');postToProjection({type:'control-ready'});if(stream&&(!projectionPeer||['closed','failed','disconnected'].includes(projectionPeer.connectionState)))await connectProjectionVideo();}
+ if(message.type==='answer'&&projectionPeer)await projectionPeer.setRemoteDescription(message.description);
+ if(message.type==='ice-display'&&projectionPeer)await projectionPeer.addIceCandidate(message.candidate).catch(()=>{});
+};
+$('#openDisplay').onclick=()=>{window.open('display.html','denkikko-projection');postToProjection({type:'control-ready'});setTimeout(()=>{if(!projectionOnline)setProjectionStatus(false,'投影画面を接続中…')},200)};
 function setMessage(mode){$('#bubble').textContent=messages[mode]||messages.idle;$('#hint').textContent=demo?'デモ体験中 · '+hints[mode]:hints[mode];document.querySelectorAll('[data-demo]').forEach(b=>b.classList.toggle('active',b.dataset.demo===(mode==='shock'?'peek':mode)))}
 function enter(){ $('#welcome').hidden=true; }
 function startDemo(mode){enter();demo=mode;demoStart=performance.now();wasHidden=false;hiddenSince=0;shockUntil=0;velocity=0;walkStart=demoStart;$('#modeBadge').textContent='DEMO MODE';$('#connection').textContent=running?'デモ中 · カメラは接続中':'デモで体験中';}
@@ -14,8 +31,8 @@ document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>startDemo(b.da
 $('#tryDemo').onclick=()=>startDemo('tilt');
 function reset(){demo=null;state={mode:'idle'};latest=null;wasHidden=false;hiddenSince=0;shockUntil=0;velocity=0;x=.66;y=.81;candidate='idle';setMessage('idle');$('#modeBadge').textContent=running?'CAMERA LIVE':'DEMO MODE';$('#connection').textContent=running?'カメラで体験中':'デモで体験できます';if(!running)$('#welcome').hidden=false;}
 $('#reset').onclick=reset;
-$('#fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('#playground').requestFullscreen()}catch{ $('#error').hidden=false;$('#error').textContent='このブラウザーでは全画面にできません。';}};
-function stop(){running=false;stream?.getTracks().forEach(t=>t.stop());stream=null;$('#camera').srcObject=null;$('#cameraBox').hidden=true;$('#stop').hidden=true;$('#start').disabled=false;$('#start').innerHTML='◉ カメラではじめる <span>→</span>';reset();}
+if($('#fullscreen'))$('#fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('#playground').requestFullscreen()}catch{ $('#error').hidden=false;$('#error').textContent='このブラウザーでは全画面にできません。';}};
+function stop(){running=false;stream?.getTracks().forEach(t=>t.stop());stream=null;projectionPeer?.close();projectionPeer=null;postToProjection({type:'stream-stopped'});$('#camera').srcObject=null;$('#cameraBox').hidden=true;$('#stop').hidden=true;$('#start').disabled=false;$('#start').innerHTML='◉ カメラではじめる <span>→</span>';reset();}
 $('#stop').onclick=stop;window.addEventListener('pagehide',()=>stream?.getTracks().forEach(t=>t.stop()));
 $('#start').onclick=async()=>{
  if(loading||running)return;loading=true;$('#error').hidden=true;$('#start').disabled=true;$('#start').textContent='カメラと認識を準備中…';
@@ -24,7 +41,7 @@ $('#start').onclick=async()=>{
   stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false});
   $('#camera').srcObject=stream;await $('#camera').play();
   if(!pose){const {FilesetResolver,PoseLandmarker}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32/vision_bundle.mjs');const files=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32/wasm');pose=await PoseLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'CPU'},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.5,minPosePresenceConfidence:.5,minTrackingConfidence:.5});}
-  running=true;lastSeen=performance.now();lastVideoTime=-1;demo=null;enter();$('#cameraBox').hidden=false;$('#stop').hidden=false;$('#modeBadge').textContent='CAMERA LIVE';$('#connection').textContent='カメラで体験中';
+  running=true;lastSeen=performance.now();lastVideoTime=-1;demo=null;enter();$('#cameraBox').hidden=false;$('#stop').hidden=false;$('#modeBadge').textContent='CAMERA LIVE';$('#connection').textContent='カメラで体験中';if(projectionOnline)await connectProjectionVideo();
  }catch(e){stream?.getTracks().forEach(t=>t.stop());stream=null;$('#camera').srcObject=null;$('#error').hidden=false;$('#error').textContent=e.name==='NotAllowedError'?'カメラが許可されていません。アドレスバーのカメラ設定を確認して、もう一度はじめてください。デモでも遊べます。':e.name==='NotFoundError'?'カメラが見つかりません。接続を確認してください。デモでも遊べます。':e.name==='NotReadableError'?'カメラをほかのアプリが使用中です。閉じてから、もう一度はじめてください。':'認識の準備に失敗しました。HTTPSまたはlocalhostで開き、ネット接続を確認して再試行してください。デモでも遊べます。';}
  finally{loading=false;$('#start').disabled=false;$('#start').innerHTML='◉ カメラではじめる <span>→</span>';}
 };
@@ -45,6 +62,7 @@ function draw(now){const dt=Math.min((now-lastFrame)/1000,.05);lastFrame=now;
  let mode=state.mode;
  if(mode==='peek'&&state.covered){if(!wasHidden)hiddenSince=now;wasHidden=true;}else if(wasHidden){if(now-hiddenSince>500)shockUntil=now+1100;wasHidden=false;}
  if(now<shockUntil)mode='shock';
+ if(now-lastSync>45){lastSync=now;postToProjection({type:'frame',mode,state,running,demo:Boolean(demo),skeleton:running&&!demo&&latest?latest.map(({x,y,visibility})=>({x,y,visibility})):null,showSkeleton:$('#skeleton').checked});}
  if(mode!==lastMode){if(mode==='bridge')walkStart=now;setMessage(mode);lastMode=mode;}
  const lerp=(a,b)=>a+(b-a)*(1-Math.exp(-dt*7));
  const tilt=mode==='tilt'?(state.tilt||0):0;sceneTilt=lerp(sceneTilt,tilt*.22);
